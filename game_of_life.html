@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game of Life</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050a0e;
+    --panel: #0a1520;
+    --border: #1a3a50;
+    --accent: #00e5ff;
+    --accent2: #00ff88;
+    --accent3: #ff6b35;
+    --dead: #050a0e;
+    --alive: #00e5ff;
+    --alive-glow: rgba(0, 229, 255, 0.6);
+    --text: #8ab8cc;
+    --text-bright: #d0eeff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* animated noise bg */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: -50%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.4;
+  }
+
+  header {
+    width: 100%;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, rgba(0,229,255,0.03), transparent);
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.1rem;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 20px var(--accent);
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .status-bar {
+    display: flex;
+    gap: 20px;
+    font-size: 0.7rem;
+    color: var(--text);
+  }
+
+  .stat { display: flex; flex-direction: column; align-items: flex-end; }
+  .stat-label { opacity: 0.5; font-size: 0.6rem; letter-spacing: 0.1em; }
+  .stat-value { color: var(--accent); font-size: 0.85rem; }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: flex;
+    flex: 1;
+    width: 100%;
+    height: calc(100vh - 53px);
+  }
+
+  /* SIDEBAR MENU */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    transition: opacity 0.3s;
+  }
+
+  .sidebar-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--text);
+    opacity: 0.4;
+    padding: 0 16px 8px;
+    text-transform: uppercase;
+  }
+
+  .menu-btn {
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    padding: 10px 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .menu-btn:hover {
+    background: rgba(0,229,255,0.06);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .menu-btn.active {
+    background: rgba(0,229,255,0.1);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .menu-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    background: rgba(0,229,255,0.15);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 2px;
+    min-width: 22px;
+    text-align: center;
+  }
+
+  .menu-btn.active .menu-num {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 16px;
+  }
+
+  /* CONTROLS */
+  .controls {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+  }
+
+  .ctrl-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    padding: 7px 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.05); }
+
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 0.7rem;
+  }
+
+  .btn.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .btn.primary.running { background: var(--accent3); border-color: var(--accent3); }
+
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    color: var(--text);
+    opacity: 0.7;
+  }
+
+  .speed-row input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+    height: 3px;
+    cursor: pointer;
+  }
+
+  /* CANVAS AREA */
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    image-rendering: pixelated;
+    cursor: crosshair;
+    border: 1px solid var(--border);
+    box-shadow:
+      0 0 40px rgba(0,229,255,0.05),
+      inset 0 0 60px rgba(0,0,0,0.5);
+  }
+
+  .corner {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--accent);
+    border-style: solid;
+    opacity: 0.5;
+  }
+  .corner.tl { top: 16px; left: 16px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 16px; right: 16px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
+
+  /* TOAST */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: rgba(0,10,20,0.95);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 8px 20px;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    border-radius: 2px;
+    transition: transform 0.3s, opacity 0.3s;
+    opacity: 0;
+    z-index: 200;
+    box-shadow: 0 0 20px rgba(0,229,255,0.3);
+  }
+
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* HINT */
+  .hint {
+    font-size: 0.6rem;
+    color: var(--text);
+    opacity: 0.35;
+    padding: 4px 16px;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">GAME OF <span>LIFE</span></div>
+  <div class="status-bar">
+    <div class="stat">
+      <span class="stat-label">GENERASI</span>
+      <span class="stat-value" id="gen">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">SEL HIDUP</span>
+      <span class="stat-value" id="alive">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">POPULASI</span>
+      <span class="stat-value" id="pop">0%</span>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-title">Pola Awal</div>
+
+    <button class="menu-btn" onclick="loadPattern('random')" id="btn-random">
+      <span class="menu-num">1</span> Acak
+    </button>
+    <button class="menu-btn" onclick="loadPattern('glider')" id="btn-glider">
+      <span class="menu-num">2</span> Glider
+    </button>
+    <button class="menu-btn" onclick="loadPattern('blinker')" id="btn-blinker">
+      <span class="menu-num">3</span> Blinker
+    </button>
+    <button class="menu-btn" onclick="loadPattern('pulsar')" id="btn-pulsar">
+      <span class="menu-num">4</span> Pulsar
+    </button>
+    <button class="menu-btn" onclick="loadPattern('gun')" id="btn-gun">
+      <span class="menu-num">5</span> Glider Gun
+    </button>
+    <button class="menu-btn" onclick="loadPattern('spaceship')" id="btn-spaceship">
+      <span class="menu-num">6</span> Spaceship
+    </button>
+    <button class="menu-btn" onclick="loadPattern('diehard')" id="btn-diehard">
+      <span class="menu-num">7</span> Diehard
+    </button>
+    <button class="menu-btn" onclick="loadPattern('acorn')" id="btn-acorn">
+      <span class="menu-num">8</span> Acorn
+    </button>
+    <button class="menu-btn" onclick="loadPattern('pentomino')" id="btn-pentomino">
+      <span class="menu-num">9</span> R-Pentomino
+    </button>
+
+    <div class="divider"></div>
+    <div class="sidebar-title">Aksi</div>
+    <button class="menu-btn" onclick="clearGrid()">
+      <span class="menu-num" style="background:rgba(255,107,53,0.15);color:var(--accent3)">C</span> Bersihkan
+    </button>
+
+    <div class="hint">Klik/seret kanvas untuk menggambar sel</div>
+
+    <div class="controls">
+      <div class="speed-row">
+        <span>🐢</span>
+        <input type="range" id="speedSlider" min="1" max="30" value="10" oninput="updateSpeed(this.value)">
+        <span>⚡</span>
+      </div>
+      <div class="ctrl-row">
+        <button class="btn" onclick="stepOnce()">STEP</button>
+        <button class="btn primary" id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="btn" onclick="loadPattern(currentPattern)">RESET</button>
+        <button class="btn" onclick="randomize25()">25%</button>
+        <button class="btn" onclick="randomize50()">50%</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const CELL = 11;
+let COLS, ROWS;
+let grid, next;
+let running = false;
+let animId = null;
+let generation = 0;
+let currentPattern = 'random';
+let speed = 10;
+let drawing = false;
+let drawValue = 1;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function initSize() {
+  const wrap = canvas.parentElement;
+  const pw = wrap.clientWidth - 48;
+  const ph = wrap.clientHeight - 48;
+  COLS = Math.floor(pw / CELL);
+  ROWS = Math.floor(ph / CELL);
+  canvas.width = COLS * CELL;
+  canvas.height = ROWS * CELL;
+}
+
+function mkGrid() {
+  return Array.from({length: ROWS}, () => new Uint8Array(COLS));
+}
+
+function clearGrid() {
+  stop();
+  grid = mkGrid();
+  generation = 0;
+  currentPattern = '';
+  setActive('');
+  render();
+  updateStats();
+  toast('Grid dibersihkan');
+}
+
+function loadPattern(name) {
+  stop();
+  generation = 0;
+  currentPattern = name;
+  grid = mkGrid();
+  setActive('btn-' + name);
+
+  const cx = Math.floor(COLS / 2);
+  const cy = Math.floor(ROWS / 2);
+
+  const place = (cells, ox=0, oy=0) => {
+    cells.forEach(([r,c]) => {
+      const rr = (r + oy + ROWS) % ROWS;
+      const cc = (c + ox + COLS) % COLS;
+      grid[rr][cc] = 1;
+    });
+  };
+
+  switch(name) {
+    case 'random':
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++)
+        grid[r][c] = Math.random() < 0.3 ? 1 : 0;
+      toast('Pola Acak dimuat');
+      break;
+
+    case 'glider':
+      place([[0,1],[1,2],[2,0],[2,1],[2,2]], cx-1, cy-1);
+      toast('Glider dimuat');
+      break;
+
+    case 'blinker':
+      // beberapa blinker tersebar
+      [[cy-6,cx-10],[cy,cx],[cy+6,cx+10],[cy-3,cx+8],[cy+4,cx-8]].forEach(([r,c])=>{
+        place([[0,0],[0,1],[0,2]], c, r);
+      });
+      toast('Blinker dimuat');
+      break;
+
+    case 'pulsar':
+      const p = [
+        [0,2],[0,3],[0,4],[0,8],[0,9],[0,10],
+        [2,0],[2,5],[2,7],[2,12],
+        [3,0],[3,5],[3,7],[3,12],
+        [4,0],[4,5],[4,7],[4,12],
+        [5,2],[5,3],[5,4],[5,8],[5,9],[5,10],
+        [7,2],[7,3],[7,4],[7,8],[7,9],[7,10],
+        [8,0],[8,5],[8,7],[8,12],
+        [9,0],[9,5],[9,7],[9,12],
+        [10,0],[10,5],[10,7],[10,12],
+        [12,2],[12,3],[12,4],[12,8],[12,9],[12,10]
+      ];
+      place(p, cx-6, cy-6);
+      toast('Pulsar dimuat');
+      break;
+
+    case 'gun': {
+      const gun = [
+        [1,25],[2,23],[2,25],[3,13],[3,14],[3,21],[3,22],[3,35],[3,36],
+        [4,12],[4,16],[4,21],[4,22],[4,35],[4,36],[5,1],[5,2],[5,11],
+        [5,17],[5,21],[5,22],[6,1],[6,2],[6,11],[6,15],[6,17],[6,18],
+        [6,23],[6,25],[7,11],[7,17],[7,25],[8,12],[8,16],[9,13],[9,14]
+      ];
+      const ox = Math.max(0, cx - 18);
+      const oy = Math.max(0, cy - 5);
+      gun.forEach(([r,c]) => {
+        if(r+oy < ROWS && c+ox < COLS) grid[r+oy][c+ox] = 1;
+      });
+      toast('Gosper Glider Gun dimuat');
+      break;
+    }
+
+    case 'spaceship':
+      place([[0,1],[0,2],[0,3],[0,4],[1,0],[1,4],[2,4],[3,0],[3,3]], cx-2, cy-2);
+      toast('Lightweight Spaceship dimuat');
+      break;
+
+    case 'diehard': {
+      const dh = [[0,6],[1,0],[1,1],[2,1],[2,5],[2,6],[2,7]];
+      place(dh, cx-4, cy);
+      toast('Diehard dimuat — akan mati setelah 130 generasi!');
+      break;
+    }
+
+    case 'acorn': {
+      const ac = [[0,1],[1,3],[2,0],[2,1],[2,4],[2,5],[2,6]];
+      place(ac, cx-3, cy);
+      toast('Acorn dimuat — stabilisasi setelah 5206 generasi!');
+      break;
+    }
+
+    case 'pentomino': {
+      const rp = [[0,1],[0,2],[1,0],[1,1],[2,1]];
+      place(rp, cx, cy);
+      toast('R-Pentomino dimuat — stabilisasi setelah 1103 generasi!');
+      break;
+    }
+  }
+
+  render();
+  updateStats();
+}
+
+function setActive(id) {
+  document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+  if(id) document.getElementById(id)?.classList.add('active');
+}
+
+function step() {
+  next = mkGrid();
+  for(let r=0;r<ROWS;r++) {
+    for(let c=0;c<COLS;c++) {
+      let n = 0;
+      for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++) {
+        if(dr===0&&dc===0) continue;
+        n += grid[(r+dr+ROWS)%ROWS][(c+dc+COLS)%COLS];
+      }
+      if(grid[r][c]) next[r][c] = (n===2||n===3) ? 1 : 0;
+      else next[r][c] = n===3 ? 1 : 0;
+    }
+  }
+  grid = next;
+  generation++;
+}
+
+function render() {
+  ctx.fillStyle = '#050a0e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(26,58,80,0.4)';
+  ctx.lineWidth = 0.5;
+  for(let c=0;c<=COLS;c++) {
+    ctx.beginPath();
+    ctx.moveTo(c*CELL, 0);
+    ctx.lineTo(c*CELL, canvas.height);
+    ctx.stroke();
+  }
+  for(let r=0;r<=ROWS;r++) {
+    ctx.beginPath();
+    ctx.moveTo(0, r*CELL);
+    ctx.lineTo(canvas.width, r*CELL);
+    ctx.stroke();
+  }
+
+  // cells
+  for(let r=0;r<ROWS;r++) {
+    for(let c=0;c<COLS;c++) {
+      if(grid[r][c]) {
+        const x = c * CELL + 1;
+        const y = r * CELL + 1;
+        const s = CELL - 2;
+        // glow
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillRect(x, y, s, s);
+        ctx.shadowBlur = 0;
+        // bright inner highlight
+        ctx.fillStyle = 'rgba(200,255,255,0.5)';
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+  }
+}
+
+function updateStats() {
+  let alive = 0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(grid[r][c]) alive++;
+  document.getElementById('gen').textContent = generation;
+  document.getElementById('alive').textContent = alive;
+  document.getElementById('pop').textContent = ((alive/(ROWS*COLS))*100).toFixed(1) + '%';
+}
+
+let lastTime = 0;
+const FRAME_MS = () => 1000 / speed;
+
+function loop(ts) {
+  if(ts - lastTime >= FRAME_MS()) {
+    lastTime = ts;
+    step();
+    render();
+    updateStats();
+  }
+  animId = requestAnimationFrame(loop);
+}
+
+function togglePlay() {
+  if(running) stop();
+  else start();
+}
+
+function start() {
+  running = true;
+  document.getElementById('playBtn').textContent = '⏹ STOP';
+  document.getElementById('playBtn').classList.add('running');
+  lastTime = 0;
+  animId = requestAnimationFrame(loop);
+}
+
+function stop() {
+  running = false;
+  document.getElementById('playBtn').textContent = '▶ PLAY';
+  document.getElementById('playBtn').classList.remove('running');
+  if(animId) { cancelAnimationFrame(animId); animId = null; }
+}
+
+function stepOnce() {
+  stop();
+  step();
+  render();
+  updateStats();
+}
+
+function updateSpeed(v) {
+  speed = parseInt(v);
+}
+
+function randomize25() { stop(); for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) grid[r][c] = Math.random()<0.25?1:0; generation=0; render(); updateStats(); toast('Random 25%'); }
+function randomize50() { stop(); for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) grid[r][c] = Math.random()<0.5?1:0; generation=0; render(); updateStats(); toast('Random 50%'); }
+
+// Draw on canvas
+function cellFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  return [Math.floor(y / CELL), Math.floor(x / CELL)];
+}
+
+canvas.addEventListener('mousedown', e => {
+  drawing = true;
+  const [r,c] = cellFromEvent(e);
+  if(r>=0&&r<ROWS&&c>=0&&c<COLS) {
+    drawValue = grid[r][c] ? 0 : 1;
+    grid[r][c] = drawValue;
+    render(); updateStats();
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  if(!drawing) return;
+  const [r,c] = cellFromEvent(e);
+  if(r>=0&&r<ROWS&&c>=0&&c<COLS) { grid[r][c] = drawValue; render(); updateStats(); }
+});
+canvas.addEventListener('mouseup', () => drawing = false);
+canvas.addEventListener('mouseleave', () => drawing = false);
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  const k = e.key;
+  if(k==='1') loadPattern('random');
+  else if(k==='2') loadPattern('glider');
+  else if(k==='3') loadPattern('blinker');
+  else if(k==='4') loadPattern('pulsar');
+  else if(k==='5') loadPattern('gun');
+  else if(k==='6') loadPattern('spaceship');
+  else if(k==='7') loadPattern('diehard');
+  else if(k==='8') loadPattern('acorn');
+  else if(k==='9') loadPattern('pentomino');
+  else if(k===' ') { e.preventDefault(); togglePlay(); }
+  else if(k==='ArrowRight') stepOnce();
+  else if(k==='c'||k==='C') clearGrid();
+});
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// Init
+window.addEventListener('resize', () => {
+  const was = running;
+  stop();
+  initSize();
+  grid = mkGrid();
+  loadPattern(currentPattern || 'random');
+  if(was) start();
+});
+
+initSize();
+grid = mkGrid();
+loadPattern('random');
+</script>
+</body>
+</html>
