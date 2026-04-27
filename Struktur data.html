@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Queue — 5 Kasus Nyata</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg2: #111118;
+  --bg3: #1a1a24;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.14);
+  --text: #e8e8f0;
+  --muted: #6b6b80;
+  --accent: #7c5cfc;
+  --accent2: #c084fc;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --mono: 'Space Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* grid background */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(124,92,252,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124,92,252,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: relative; z-index: 10;
+  padding: 48px 40px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+}
+.logo {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: .16em; color: var(--accent2);
+  text-transform: uppercase; margin-bottom: 10px;
+}
+h1 {
+  font-family: var(--mono);
+  font-size: clamp(28px, 5vw, 52px);
+  font-weight: 700; line-height: 1;
+  background: linear-gradient(135deg, #fff 30%, var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.tagline { font-size: 13px; color: var(--muted); margin-top: 8px; font-weight: 300; }
+.badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  padding: 4px 10px; border-radius: 2px;
+  border: 1px solid var(--border2); color: var(--muted); text-transform: uppercase;
+}
+
+/* ── NAV TABS ── */
+nav {
+  position: relative; z-index: 10;
+  display: flex; overflow-x: auto; border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+nav::-webkit-scrollbar { display: none; }
+.nav-btn {
+  flex-shrink: 0;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  padding: 16px 24px; cursor: pointer; border: none; background: none;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  transition: color .2s, border-color .2s; white-space: nowrap;
+}
+.nav-btn:hover { color: var(--text); }
+.nav-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+/* ── MAIN ── */
+main {
+  position: relative; z-index: 1;
+  max-width: 900px; margin: 0 auto; padding: 40px 24px 80px;
+}
+
+.scene { display: none; animation: fadeUp .3s ease; }
+.scene.active { display: block; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── CARD ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px; padding: 28px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--accent2); margin-bottom: 6px;
+}
+.card-desc { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+
+/* ── QUEUE STRIP ── */
+.queue-wrap {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 4px; padding: 20px; margin-bottom: 16px;
+  min-height: 80px;
+}
+.queue-labels {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+}
+.queue-track {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; min-height: 48px;
+}
+.q-cell {
+  font-family: var(--mono); font-size: 12px;
+  padding: 8px 14px; border-radius: 3px;
+  border: 1px solid var(--border2);
+  background: var(--bg); color: var(--text);
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  white-space: nowrap;
+}
+.q-cell.head { border-color: var(--green); color: var(--green); }
+.q-cell.tail { border-color: var(--accent); color: var(--accent2); }
+.q-cell.highlight { border-color: var(--amber); color: var(--amber); background: rgba(251,191,36,.06); }
+.q-cell.gone { border-color: var(--red); color: var(--red); opacity:.5; text-decoration:line-through; }
+@keyframes popIn { 0%{transform:scale(.7) translateY(8px);opacity:0} 70%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+.q-cell.new { animation: popIn .35s ease forwards; }
+.q-arrow { color: var(--muted); font-size: 14px; flex-shrink: 0; }
+.q-empty { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ── BUTTONS ── */
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.btn {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 10px 18px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border2); background: var(--bg3); color: var(--text);
+  transition: all .15s; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent2); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+.btn:disabled { opacity:.3; cursor:default; transform:none; }
+
+/* ── LOG ── */
+.log-box {
+  font-family: var(--mono); font-size: 11px; line-height: 1.7;
+  color: var(--muted); padding: 12px 16px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 3px; min-height: 36px;
+}
+.log-box span { color: var(--green); }
+
+/* ── STATS ROW ── */
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat {
+  flex: 1; min-width: 90px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 4px; padding: 14px 16px; text-align: center;
+}
+.stat-val { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--text); display: block; }
+.stat-key { font-family: var(--mono); font-size: 9px; letter-spacing:.12em; text-transform:uppercase; color: var(--muted); margin-top: 4px; }
+
+/* ── RING (Hot Potato) ── */
+.ring-outer { position: relative; width: 220px; height: 220px; margin: 0 auto 20px; }
+.ring-player {
+  position: absolute; width: 50px; height: 50px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  border: 1px solid var(--border2); background: var(--bg3);
+  color: var(--muted); transition: all .3s ease;
+}
+.ring-player.active { border-color: var(--amber); color: var(--amber); background: rgba(251,191,36,.1); }
+.ring-player.out { opacity:.2; text-decoration: line-through; }
+.potato-icon {
+  position: absolute; font-size: 20px;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+
+/* ── PRIORITY LIST (RS) ── */
+.pq-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.pq-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 3px;
+  border: 1px solid var(--border); background: var(--bg3);
+  font-family: var(--mono); font-size: 12px;
+  transition: all .4s ease;
+}
+.pq-item.p0 { border-color: var(--red); }
+.pq-item.p1 { border-color: var(--amber); }
+.pq-item.p2 { border-color: var(--blue); }
+.pq-item.p3 { border-color: var(--border2); }
+.pq-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pq-item.p0 .pq-dot { background: var(--red); }
+.pq-item.p1 .pq-dot { background: var(--amber); }
+.pq-item.p2 .pq-dot { background: var(--blue); }
+.pq-item.p3 .pq-dot { background: var(--muted); }
+.pq-name { flex: 1; color: var(--text); }
+.pq-label { font-size: 9px; letter-spacing:.1em; text-transform:uppercase; color: var(--muted); }
+.pq-time { font-size: 9px; color: var(--muted); }
+@keyframes slideOut { to { opacity:0; transform:translateX(-20px); max-height:0; padding:0; margin:0; } }
+.pq-item.leaving { animation: slideOut .3s ease forwards; }
+
+/* ── BFS GRAPH ── */
+#bfs-svg { width: 100%; height: auto; display: block; margin-bottom: 16px; }
+
+/* ── AGENTS ── */
+.agents { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.agent {
+  flex: 1; min-width: 120px;
+  padding: 12px; border-radius: 3px;
+  border: 1px solid var(--border); background: var(--bg3);
+  font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--muted);
+  transition: border-color .3s;
+}
+.agent.busy { border-color: var(--green); color: var(--text); }
+.agent-label { font-size: 9px; letter-spacing:.12em; text-transform:uppercase; color: var(--accent2); margin-bottom: 4px; }
+
+/* ── SLIDER ── */
+.slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.slider-row label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+input[type=range] { flex: 1; max-width: 140px; accent-color: var(--accent); }
+.slider-val { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); min-width: 24px; }
+
+/* ── SECTION TITLE ── */
+.sec-h { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.sec-num {
+  font-family: var(--mono); font-size: 10px; letter-spacing:.1em;
+  padding: 4px 8px; background: var(--accent); color: #fff; border-radius: 2px;
+}
+.sec-title { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Struktur Data &amp; Algoritma</div>
+    <h1>QUEUE</h1>
+    <p class="tagline">5 implementasi kasus nyata — interaktif &amp; animasi</p>
+  </div>
+  <div class="badge-row">
+    <div class="badge">FIFO</div>
+    <div class="badge">O(1)</div>
+    <div class="badge">Circular Array</div>
+    <div class="badge">Priority Queue</div>
+    <div class="badge">BFS</div>
+  </div>
+</header>
+
+<nav id="nav">
+  <button class="nav-btn active" onclick="go(0)">01 / Printer</button>
+  <button class="nav-btn" onclick="go(1)">02 / Hot Potato</button>
+  <button class="nav-btn" onclick="go(2)">03 / Rumah Sakit</button>
+  <button class="nav-btn" onclick="go(3)">04 / BFS</button>
+  <button class="nav-btn" onclick="go(4)">05 / Bandara</button>
+</nav>
+
+<main>
+
+<!-- ════════════════════════════════════════
+     KASUS 1 — PRINTER
+════════════════════════════════════════ -->
+<div class="scene active" id="s0">
+  <div class="sec-h"><span class="sec-num">01</span><span class="sec-title">Antrian Printer Bersama</span></div>
+  <div class="card">
+    <div class="card-title">Skenario</div>
+    <div class="card-desc">Banyak user mengirim dokumen ke 1 printer. Printer hanya bisa cetak 1 dokumen pada satu waktu. Dokumen yang datang duluan, dicetak duluan — <strong>FIFO</strong>.</div>
+    <div class="queue-wrap">
+      <div class="queue-labels"><span>← FRONT (cetak)</span><span>REAR (masuk) →</span></div>
+      <div class="queue-track" id="pq-track"><span class="q-empty">— antrian kosong —</span></div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="flex:1;min-width:160px">
+        <div class="card-title">Sedang Dicetak</div>
+        <div id="printing" style="font-family:var(--mono);font-size:13px;color:var(--muted);padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;min-height:40px">—</div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div class="card-title">Selesai</div>
+        <div id="printed" style="font-family:var(--mono);font-size:11px;color:var(--green);line-height:1.8;min-height:40px"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="p1Enqueue()">+ Tambah Dokumen</button>
+      <button class="btn primary" onclick="p1Dequeue()">Cetak →</button>
+      <button class="btn" onclick="p1Reset()">Reset</button>
+    </div>
+    <div class="log-box" id="p1-log">Tekan <span>+ Tambah Dokumen</span> untuk memulai</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     KASUS 2 — HOT POTATO
+════════════════════════════════════════ -->
+<div class="scene" id="s1">
+  <div class="sec-h"><span class="sec-num">02</span><span class="sec-title">Permainan Hot Potato</span></div>
+  <div class="card">
+    <div class="card-title">Skenario</div>
+    <div class="card-desc">Pemain duduk melingkar dan mengoper benda. Setelah N kali oper, yang memegang benda tersingkir. Queue mensimulasikan putaran melingkar — <strong>dequeue() lalu enqueue()</strong> berarti oper.</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+      <div class="ring-outer" id="ring"></div>
+      <div style="flex:1;min-width:150px">
+        <div class="card-title" style="margin-bottom:8px">Status Pemain</div>
+        <div id="hp-players" style="font-family:var(--mono);font-size:11px;line-height:2.2"></div>
+        <div style="margin-top:16px">
+          <div class="card-title">Hitungan Oper</div>
+          <div id="hp-count" style="font-family:var(--mono);font-size:36px;font-weight:700;color:var(--text)">0</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">/ <span id="hp-n-val">5</span> sebelum tersingkir</div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <div class="slider-row">
+        <label>N oper</label>
+        <input type="range" min="2" max="8" value="5" id="hp-n" oninput="document.getElementById('hp-n-val').textContent=this.value">
+        <span class="slider-val" id="hp-n-show">5</span>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="hpStep()">Oper Sekali</button>
+      <button class="btn primary" id="hp-auto-btn" onclick="hpAuto()">Auto ▶</button>
+      <button class="btn" onclick="hpReset()">Reset</button>
+    </div>
+    <div class="log-box" id="hp-log">6 pemain siap — tekan <span>Auto ▶</span></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     KASUS 3 — RUMAH SAKIT
+════════════════════════════════════════ -->
+<div class="scene" id="s2">
+  <div class="sec-h"><span class="sec-num">03</span><span class="sec-title">Antrian Rumah Sakit</span></div>
+  <div class="card">
+    <div class="card-title">Skenario</div>
+    <div class="card-desc">Pasien dilayani berdasarkan urgensi, bukan urutan datang. Prioritas sama → tetap FIFO. Menggunakan <strong>Bounded Priority Queue</strong> dengan 4 level.</div>
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--red)"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>0 Kritis</div>
+      <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--amber)"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block"></span>1 Darurat</div>
+      <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--blue)"><span style="width:8px;height:8px;border-radius:50%;background:var(--blue);display:inline-block"></span>2 Menengah</div>
+      <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block"></span>3 Ringan</div>
+    </div>
+    <div class="pq-list" id="pq-rs"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="rsAdd()">+ Pasien Baru</button>
+      <button class="btn primary" onclick="rsServe()">Layani →</button>
+      <button class="btn" onclick="rsReset()">Reset</button>
+    </div>
+    <div class="log-box" id="rs-log">Tekan <span>+ Pasien Baru</span> untuk mendaftar</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     KASUS 4 — BFS
+════════════════════════════════════════ -->
+<div class="scene" id="s3">
+  <div class="sec-h"><span class="sec-num">04</span><span class="sec-title">BFS — Breadth-First Search</span></div>
+  <div class="card">
+    <div class="card-title">Skenario</div>
+    <div class="card-desc">Queue menjamin BFS menjelajah graf <strong>level demi level</strong>. Node yang ditemukan duluan diproses duluan. Klik node untuk mulai dari sana.</div>
+    <svg id="bfs-svg" viewBox="0 0 640 280"></svg>
+    <div style="margin-bottom:8px">
+      <div class="card-title">Queue BFS</div>
+      <div class="queue-track" id="bfs-q" style="margin-top:6px"><span class="q-empty">— kosong —</span></div>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn" onclick="bfsStep()">Langkah →</button>
+      <button class="btn primary" id="bfs-auto-btn" onclick="bfsAuto()">Auto ▶</button>
+      <button class="btn" onclick="bfsReset()">Reset</button>
+    </div>
+    <div class="log-box" id="bfs-log">Klik node untuk mulai, atau <span>Auto ▶</span></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     KASUS 5 — BANDARA
+════════════════════════════════════════ -->
+<div class="scene" id="s4">
+  <div class="sec-h"><span class="sec-num">05</span><span class="sec-title">Simulasi Loket Bandara</span></div>
+  <div class="card">
+    <div class="card-title">Skenario</div>
+    <div class="card-desc">Discrete-event simulation. Penumpang tiba secara acak, dilayani agen loket. Tambah agen → lihat waktu tunggu turun drastis!</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
+      <div style="flex:1;min-width:180px">
+        <div class="card-title">Antrian Penumpang</div>
+        <div class="queue-track" id="airport-q" style="margin-top:6px;flex-wrap:wrap;max-width:280px"><span class="q-empty">—</span></div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div class="card-title">Agen Loket</div>
+        <div class="agents" id="agents-wrap"></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="stat-val" id="sim-tick">0</span><div class="stat-key">Menit</div></div>
+      <div class="stat"><span class="stat-val" id="sim-served">0</span><div class="stat-key">Dilayani</div></div>
+      <div class="stat"><span class="stat-val" id="sim-wait">0.0</span><div class="stat-key">Avg Tunggu</div></div>
+      <div class="stat"><span class="stat-val" id="sim-qlen">0</span><div class="stat-key">Antrian</div></div>
+    </div>
+    <div class="btn-row">
+      <div class="slider-row">
+        <label>Agen</label>
+        <input type="range" min="1" max="4" value="2" id="sim-agent-sl" oninput="simSetAgent(this.value)">
+        <span class="slider-val" id="sim-agent-show">2</span>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="simStep()">Tick +1</button>
+      <button class="btn primary" id="sim-auto-btn" onclick="simAuto()">Auto ▶</button>
+      <button class="btn" onclick="simReset()">Reset</button>
+    </div>
+    <div class="log-box" id="sim-log">Atur jumlah agen lalu <span>Auto ▶</span></div>
+  </div>
+</div>
+
+</main>
+
+<script>
+/* ── UTILS ── */
+const $ = id => document.getElementById(id);
+const scenes = ['s0','s1','s2','s3','s4'];
+
+function go(i) {
+  scenes.forEach((s,j)=>{ $(s).classList.toggle('active',i===j); });
+  document.querySelectorAll('.nav-btn').forEach((b,j)=>b.classList.toggle('active',i===j));
+}
+
+/* ── INPUT SYNC ── */
+$('hp-n').addEventListener('input', function(){ $('hp-n-show').textContent=this.value; $('hp-n-val').textContent=this.value; });
+
+/* ════════════════════════════════════
+   KASUS 1 — PRINTER
+════════════════════════════════════ */
+const docs=[['laporan.pdf','Budi',3],['tugas.docx','Ani',1],['foto.jpg','Citra',2],['slide.pptx','Dedi',4],['invoice.pdf','Eka',2],['memo.txt','Fira',1],['data.xlsx','Gani',3]];
+let p1Q=[],p1Idx=0,p1Done=[];
+
+function p1Render(){
+  const t=$('pq-track'); t.innerHTML='';
+  if(!p1Q.length){t.innerHTML='<span class="q-empty">— antrian kosong —</span>';return;}
+  p1Q.forEach(([f,u,h],i)=>{
+    const d=document.createElement('div');
+    d.className='q-cell'+(i===0?' head':'')+(i===p1Q.length-1?' tail':'')+' new';
+    d.textContent=f; t.appendChild(d);
+    if(i<p1Q.length-1){const a=document.createElement('span');a.className='q-arrow';a.textContent='›';t.appendChild(a);}
+  });
+}
+function p1Enqueue(){
+  const doc=docs[p1Idx++%docs.length];
+  p1Q.push(doc);
+  $('p1-log').innerHTML=`enqueue(<span>"${doc[0]}"</span>) oleh ${doc[1]} — masuk ke belakang antrian`;
+  p1Render();
+}
+function p1Dequeue(){
+  if(!p1Q.length){$('p1-log').innerHTML='<span style="color:var(--red)">Queue kosong!</span>';return;}
+  const [f,u,h]=p1Q.shift();
+  $('printing').innerHTML=`<span style="color:var(--green)">🖨 ${f}</span><br><span style="font-size:10px;color:var(--muted)">${h} halaman — ${u}</span>`;
+  p1Done.push(f);
+  $('printed').innerHTML=p1Done.map(x=>`✓ ${x}`).join('<br>');
+  $('p1-log').innerHTML=`dequeue() → <span>"${f}"</span> sedang dicetak`;
+  p1Render();
+  setTimeout(()=>{if($('printing').textContent.includes(f))$('printing').innerHTML='—';},1500);
+}
+function p1Reset(){p1Q=[];p1Idx=0;p1Done=[];$('printing').innerHTML='—';$('printed').innerHTML='';$('p1-log').innerHTML='Tekan <span>+ Tambah Dokumen</span> untuk memulai';p1Render();}
+p1Render();
+
+/* ════════════════════════════════════
+   KASUS 2 — HOT POTATO
+════════════════════════════════════ */
+const hpNames=['Andi','Budi','Citra','Dedi','Eka','Fira'];
+let hpQ=[],hpElim=[],hpCounter=0,hpAutoT=null;
+
+function hpPos(i,n,cx,cy,r){
+  const a=(i/n)*Math.PI*2-Math.PI/2;
+  return{x:cx+r*Math.cos(a)-25,y:cy+r*Math.sin(a)-25};
+}
+function hpRenderRing(){
+  const wrap=$('ring'); wrap.querySelectorAll('.ring-player').forEach(e=>e.remove());
+  const n=hpNames.length,cx=110,cy=110,r=80;
+  hpNames.forEach((nm,i)=>{
+    const p=hpPos(i,n,cx,cy,r);
+    const d=document.createElement('div');
+    d.className='ring-player'+(hpElim.includes(i)?' out':'')+(hpQ.length&&hpQ[0]===i?' active':'');
+    d.style.left=p.x+'px'; d.style.top=p.y+'px'; d.textContent=nm;
+    wrap.appendChild(d);
+  });
+  let pot=wrap.querySelector('.potato-icon');
+  if(!pot){pot=document.createElement('div');pot.className='potato-icon';pot.textContent='🥔';wrap.appendChild(pot);}
+  if(hpQ.length){
+    const pi=hpQ[0],p=hpPos(pi,n,cx,cy,r);
+    pot.style.left=(p.x+12)+'px'; pot.style.top=(p.y-22)+'px'; pot.style.display='';
+  } else pot.style.display='none';
+  $('hp-players').innerHTML=hpNames.map((nm,i)=>
+    hpElim.includes(i)?`<span style="color:var(--muted);text-decoration:line-through">${nm} ✗</span>`:
+    (hpQ.length&&hpQ[0]===i?`<span style="color:var(--amber)">${nm} 🥔</span>`:`<span style="color:var(--text)">${nm}</span>`)
+  ).join('<br>');
+}
+function hpReset(){
+  if(hpAutoT){clearInterval(hpAutoT);hpAutoT=null;$('hp-auto-btn').textContent='Auto ▶';}
+  hpQ=hpNames.map((_,i)=>i); hpElim=[]; hpCounter=0;
+  $('hp-count').textContent='0';
+  $('hp-log').innerHTML='6 pemain siap — tekan <span>Auto ▶</span>';
+  hpRenderRing();
+}
+function hpStep(){
+  if(hpQ.length<=1){$('hp-log').innerHTML=hpQ.length?`🏆 Pemenang: <span>${hpNames[hpQ[0]]}</span>!`:'Game over';return;}
+  const N=parseInt($('hp-n').value);
+  hpQ.push(hpQ.shift()); hpCounter++;
+  $('hp-count').textContent=hpCounter%N||N;
+  if(hpCounter%N===0){
+    const out=hpQ.shift(); hpElim.push(out); hpCounter=0;
+    $('hp-log').innerHTML=`<span style="color:var(--red)">${hpNames[out]} tersingkir!</span> ${hpQ.length} pemain tersisa`;
+  } else {
+    $('hp-log').innerHTML=`Oper ke <span>${hpNames[hpQ[0]]}</span> (${hpCounter%N}/${N})`;
+  }
+  hpRenderRing();
+  if(hpQ.length===1){
+    $('hp-log').innerHTML=`🏆 Pemenang: <span>${hpNames[hpQ[0]]}</span>!`;
+    if(hpAutoT){clearInterval(hpAutoT);hpAutoT=null;$('hp-auto-btn').textContent='Auto ▶';}
+  }
+}
+function hpAuto(){
+  if(hpAutoT){clearInterval(hpAutoT);hpAutoT=null;$('hp-auto-btn').textContent='Auto ▶';return;}
+  $('hp-auto-btn').textContent='Pause ⏸';
+  hpAutoT=setInterval(()=>{if(hpQ.length<=1){clearInterval(hpAutoT);hpAutoT=null;$('hp-auto-btn').textContent='Auto ▶';return;}hpStep();},450);
+}
+hpReset();
+
+/* ════════════════════════════════════
+   KASUS 3 — RUMAH SAKIT
+════════════════════════════════════ */
+const rsNames=['Andi','Budi','Citra','Dedi','Eka','Fira','Gani','Hana','Irma','Joko'];
+const prioMeta=[{cls:'p0',lbl:'Kritis'},{cls:'p1',lbl:'Darurat'},{cls:'p2',lbl:'Menengah'},{cls:'p3',lbl:'Ringan'}];
+let rsItems=[],rsNIdx=0,rsServedCount=0;
+
+function rsRender(){
+  const el=$('pq-rs'); el.innerHTML='';
+  const sorted=[...rsItems].sort((a,b)=>a.p-b.p||(a.t-b.t));
+  if(!sorted.length){el.innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px">Tidak ada pasien</div>';return;}
+  sorted.forEach(item=>{
+    const d=document.createElement('div');
+    d.className=`pq-item ${prioMeta[item.p].cls}`;
+    d.innerHTML=`<div class="pq-dot"></div><span class="pq-name">${item.name}</span><span class="pq-label">${prioMeta[item.p].lbl}</span><span class="pq-time">T+${item.t}</span>`;
+    el.appendChild(d);
+  });
+}
+function rsAdd(){
+  const p=Math.floor(Math.random()*4),name=rsNames[rsNIdx++%rsNames.length];
+  rsItems.push({name,p,t:rsNIdx});
+  $('rs-log').innerHTML=`<span>${name}</span> mendaftar — ${prioMeta[p].lbl} (prioritas ${p})`;
+  rsRender();
+}
+function rsServe(){
+  if(!rsItems.length){$('rs-log').innerHTML='<span style="color:var(--red)">Tidak ada pasien!</span>';return;}
+  const sorted=[...rsItems].sort((a,b)=>a.p-b.p||(a.t-b.t));
+  const next=sorted[0]; rsItems=rsItems.filter(x=>!(x.name===next.name&&x.t===next.t));
+  rsServedCount++;
+  $('rs-log').innerHTML=`✓ <span>${next.name}</span> dilayani (${prioMeta[next.p].lbl}) — total: ${rsServedCount}`;
+  rsRender();
+}
+function rsReset(){rsItems=[];rsNIdx=0;rsServedCount=0;$('rs-log').innerHTML='Tekan <span>+ Pasien Baru</span> untuk mendaftar';rsRender();}
+rsReset();
+
+/* ════════════════════════════════════
+   KASUS 4 — BFS
+════════════════════════════════════ */
+const G={A:['B','C'],B:['A','D','E'],C:['A','F'],D:['B'],E:['B','G'],F:['C','G'],G:['E','F']};
+const NP={A:{x:320,y:40},B:{x:140,y:130},C:{x:500,y:130},D:{x:60,y:230},E:{x:220,y:230},F:{x:420,y:230},G:{x:580,y:230}};
+let bfsVisited=new Set(),bfsQueue=[],bfsCur=null,bfsAutoT=null,bfsStart='A';
+
+function bfsDrawGraph(){
+  const svg=$('bfs-svg'); svg.innerHTML='';
+  // edges
+  const drawn=new Set();
+  for(const[n,ns] of Object.entries(G)){
+    for(const nb of ns){
+      const k=[n,nb].sort().join('-');
+      if(!drawn.has(k)){drawn.add(k);
+        const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+        const bothVis=bfsVisited.has(n)&&bfsVisited.has(nb);
+        l.setAttribute('x1',NP[n].x);l.setAttribute('y1',NP[n].y);l.setAttribute('x2',NP[nb].x);l.setAttribute('y2',NP[nb].y);
+        l.setAttribute('stroke',bothVis?'rgba(124,92,252,0.4)':'rgba(255,255,255,0.08)');l.setAttribute('stroke-width','1.5');
+        svg.appendChild(l);
+      }
+    }
+  }
+  // nodes
+  for(const[n,p] of Object.entries(NP)){
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('onclick',`bfsStartFrom('${n}')`); g.style.cursor='pointer';
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r','28');
+    let fill='#1a1a24',stroke='rgba(255,255,255,0.14)';
+    if(n===bfsCur){fill='rgba(52,211,153,0.15)';stroke='#34d399';}
+    else if(bfsVisited.has(n)){fill='rgba(124,92,252,0.12)';stroke='rgba(192,132,252,0.5)';}
+    else if(bfsQueue.includes(n)){fill='rgba(251,191,36,0.1)';stroke='#fbbf24';}
+    c.setAttribute('fill',fill);c.setAttribute('stroke',stroke);c.setAttribute('stroke-width','1.5');
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',p.x);t.setAttribute('y',p.y);t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','central');
+    t.setAttribute('font-size','14');t.setAttribute('font-weight','700');t.setAttribute('font-family','Space Mono,monospace');
+    let tc=n===bfsCur?'#34d399':bfsVisited.has(n)?'#c084fc':bfsQueue.includes(n)?'#fbbf24':'#6b6b80';
+    t.setAttribute('fill',tc); t.textContent=n;
+    g.appendChild(c);g.appendChild(t); svg.appendChild(g);
+  }
+}
+function bfsQRender(){
+  const el=$('bfs-q'); el.innerHTML='';
+  if(!bfsQueue.length){el.innerHTML='<span class="q-empty">— kosong —</span>';return;}
+  bfsQueue.forEach((n,i)=>{
+    const d=document.createElement('div');
+    d.className='q-cell'+(i===0?' head':'')+(i===bfsQueue.length-1?' tail':'');
+    d.textContent=n; el.appendChild(d);
+    if(i<bfsQueue.length-1){const a=document.createElement('span');a.className='q-arrow';a.textContent='›';el.appendChild(a);}
+  });
+}
+function bfsStartFrom(n){
+  if(bfsAutoT){clearInterval(bfsAutoT);bfsAutoT=null;$('bfs-auto-btn').textContent='Auto ▶';}
+  bfsVisited=new Set();bfsQueue=[];bfsCur=null;bfsStart=n;
+  bfsQueue.push(n);bfsVisited.add(n);
+  $('bfs-log').innerHTML=`BFS dari node <span>${n}</span> — tekan Langkah atau <span>Auto ▶</span>`;
+  bfsDrawGraph();bfsQRender();
+}
+function bfsStep(){
+  if(!bfsQueue.length){$('bfs-log').innerHTML='✓ <span>BFS selesai!</span> Semua node dikunjungi.';return;}
+  bfsCur=bfsQueue.shift();
+  const newN=G[bfsCur].filter(nb=>!bfsVisited.has(nb)).sort();
+  newN.forEach(nb=>{bfsVisited.add(nb);bfsQueue.push(nb);});
+  $('bfs-log').innerHTML=`dequeue → <span>${bfsCur}</span>. Tetangga baru: [${newN.join(', ')||'—'}]`;
+  bfsDrawGraph();bfsQRender();
+  if(!bfsQueue.length) setTimeout(()=>{$('bfs-log').innerHTML='✓ <span>BFS selesai!</span>';if(bfsAutoT){clearInterval(bfsAutoT);bfsAutoT=null;$('bfs-auto-btn').textContent='Auto ▶';}},200);
+}
+function bfsAuto(){
+  if(bfsAutoT){clearInterval(bfsAutoT);bfsAutoT=null;$('bfs-auto-btn').textContent='Auto ▶';return;}
+  if(!bfsQueue.length) bfsStartFrom(bfsStart);
+  $('bfs-auto-btn').textContent='Pause ⏸';
+  bfsAutoT=setInterval(()=>{if(!bfsQueue.length){clearInterval(bfsAutoT);bfsAutoT=null;$('bfs-auto-btn').textContent='Auto ▶';return;}bfsStep();},750);
+}
+function bfsReset(){
+  if(bfsAutoT){clearInterval(bfsAutoT);bfsAutoT=null;$('bfs-auto-btn').textContent='Auto ▶';}
+  bfsVisited=new Set();bfsQueue=[];bfsCur=null;
+  $('bfs-log').innerHTML='Klik node untuk mulai, atau <span>Auto ▶</span>';
+  bfsDrawGraph();bfsQRender();
+}
+bfsReset();
+
+/* ════════════════════════════════════
+   KASUS 5 — BANDARA
+════════════════════════════════════ */
+let simTick=0,simQ=[],simAgentList=[],simNumAgents=2,simServed=0,simTotalWait=0,simPaxId=0,simAutoT=null;
+const SVC=3,PROB=0.5;
+
+function simSetAgent(n){simNumAgents=parseInt(n);$('sim-agent-show').textContent=n;simReset();}
+function simRenderAgents(){
+  const w=$('agents-wrap'); w.innerHTML='';
+  simAgentList.forEach((ag,i)=>{
+    const d=document.createElement('div'); d.className='agent'+(ag.busy?' busy':'');
+    d.innerHTML=`<div class="agent-label">Agen ${i+1}</div>${ag.busy?`<span style="color:var(--green)">Melayani P${ag.pax}</span><br><span style="font-size:10px;color:var(--muted)">${ag.end-simTick} mnt lagi</span>`:'<span style="color:var(--muted)">— kosong</span>'}`;
+    w.appendChild(d);
+  });
+}
+function simRenderQ(){
+  const el=$('airport-q'); el.innerHTML='';
+  if(!simQ.length){el.innerHTML='<span class="q-empty">—</span>';return;}
+  simQ.slice(0,10).forEach((p,i)=>{
+    const d=document.createElement('div');
+    d.className='q-cell'+(i===0?' head':'');
+    d.style.fontSize='10px'; d.textContent='P'+p.id; el.appendChild(d);
+    if(i<Math.min(simQ.length,10)-1){const a=document.createElement('span');a.className='q-arrow';a.textContent='›';el.appendChild(a);}
+  });
+  if(simQ.length>10){const m=document.createElement('span');m.style.cssText='font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px';m.textContent='+'+(simQ.length-10);el.appendChild(m);}
+}
+function simStep(){
+  simTick++;
+  if(Math.random()<PROB){simPaxId++;simQ.push({id:simPaxId,arrive:simTick});}
+  simAgentList.forEach(ag=>{if(!ag.busy&&simQ.length){const p=simQ.shift();ag.busy=true;ag.pax=p.id;ag.end=simTick+SVC;ag.waitAdd=simTick-p.arrive;}});
+  simAgentList.forEach(ag=>{if(ag.busy&&simTick>=ag.end){simServed++;simTotalWait+=ag.waitAdd;ag.busy=false;ag.pax='';}});
+  $('sim-tick').textContent=simTick;
+  $('sim-served').textContent=simServed;
+  $('sim-wait').textContent=simServed?(simTotalWait/simServed).toFixed(1):'0.0';
+  $('sim-qlen').textContent=simQ.length;
+  $('sim-log').innerHTML=`T=${simTick}: ${simServed} dilayani, antrian=${simQ.length}, avg tunggu=${simServed?(simTotalWait/simServed).toFixed(1):'0.0'} mnt`;
+  simRenderQ();simRenderAgents();
+}
+function simAuto(){
+  if(simAutoT){clearInterval(simAutoT);simAutoT=null;$('sim-auto-btn').textContent='Auto ▶';return;}
+  $('sim-auto-btn').textContent='Pause ⏸';
+  simAutoT=setInterval(()=>simStep(),280);
+}
+function simReset(){
+  if(simAutoT){clearInterval(simAutoT);simAutoT=null;$('sim-auto-btn').textContent='Auto ▶';}
+  simTick=0;simQ=[];simServed=0;simTotalWait=0;simPaxId=0;
+  simAgentList=Array.from({length:simNumAgents},()=>({busy:false,pax:'',end:0,waitAdd:0}));
+  $('sim-tick').textContent=0;$('sim-served').textContent=0;$('sim-wait').textContent='0.0';$('sim-qlen').textContent=0;
+  $('sim-log').innerHTML='Atur jumlah agen lalu <span>Auto ▶</span>';
+  simRenderQ();simRenderAgents();
+}
+simReset();
+</script>
+</body>
+</html>
